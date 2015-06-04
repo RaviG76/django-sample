@@ -1,0 +1,391 @@
+from django.template import Context,loader
+from django.http import HttpResponse, StreamingHttpResponse
+from django.core.context_processors import csrf
+from django.conf import settings
+from django.shortcuts import render_to_response
+from django.template import RequestContext
+from django.middleware.csrf import get_token
+
+from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from django.contrib.auth import authenticate
+from app.api.models import *
+from django.contrib.auth.models import User    
+from django.views.generic.base import TemplateView
+import json
+
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.db import *
+import re
+from django.core.mail import send_mail, BadHeaderError
+from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import get_template
+from django.template import Context
+import httplib2
+import requests
+http = httplib2.Http()
+from django.utils.encoding import iri_to_uri
+from django.utils.http import urlquote
+import hashlib
+import hmac
+import time
+import datetime
+from pprint import pprint # to remove later
+from freshdesk_api import contacts, tickets
+import ast
+from django.core.mail import send_mail
+methods_allowed = ['GET','POST']
+
+try:
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+except ImportError:
+    from django.contrib.auth.models import User
+    
+# lead listening service
+def process_request(request, method, **args):
+    path = request.path
+    client_ip = request.META['REMOTE_ADDR']
+    content = str(request.GET["data"]).encode('utf8')
+    content = content.replace('%25253a', ':')
+    content = content.replace('%25252b', ' ')
+    content = content.replace('%252b', ' ')
+    content = content.replace('%253a', ':')
+    content = content.replace('%3a', ':')
+    content = content.replace('%2b', ' ')
+    response = {}    
+    try:
+        # validate request method only post allowed
+        if request.META['REQUEST_METHOD'] not in methods_allowed:
+            result = {'status':'403','data':'request method not allowed'}
+            return HttpResponse(json.dumps(result), content_type='application/json')
+        else:
+            slashparts = path.split('/')
+            #print slashparts
+            basename = '/'.join(slashparts[:3]) + '/'
+            dirname = '/'.join(slashparts[:-1]) + '/'
+            #content = ast.literal_eval(str(content).encode('utf8'))
+            #content = json.loads(content)
+            if slashparts[5]=='listen':
+                content = ast.literal_eval(str(content).encode('utf8'))
+
+                    
+                HomeState          =    content['LeadRequest']['HomeState']
+                DriversLicenseState=    content['LeadRequest']['DriversLicenseState']
+                DriversLicense     =    content['LeadRequest']['DriversLicense']
+                DOB                =    content['LeadRequest']['DOB']
+                MailCity           =    content['LeadRequest']['MailCity']
+                ClientIpAddress=        content['LeadRequest']['ClientIpAddress']
+                WorkPhone=              content['LeadRequest']['WorkPhone']
+                HomeAddress=            content['LeadRequest']['HomeAddress']
+                MailZip=                content['LeadRequest']['MailZip']
+                Username=               content['LeadRequest']['Username']
+                WorkPhoneExt=           content['LeadRequest']['WorkPhoneExt']
+                Firstname=              content['LeadRequest']['Firstname']
+                Lastname=               content['LeadRequest']['Lastname']
+                Email=                  content['LeadRequest']['Email']
+                HomeCity=               content['LeadRequest']['HomeCity']
+                Password=               content['LeadRequest']['Password']
+                HomeZip=                content['LeadRequest']['HomeZip']
+                TimeAtAddress=          content['LeadRequest']['TimeAtAddress']
+                BankInfo=               content['LeadRequest']['BankInfo']
+                Language=               content['LeadRequest']['Language']
+                CellPhone=              content['LeadRequest']['CellPhone']
+                Gender=                 content['LeadRequest']['Gender']
+                Fax=                    content['LeadRequest']['Fax']
+                BestTimeToCall=         content['LeadRequest']['BestTimeToCall']
+                LoanInfo=               content['LeadRequest']['LoanInfo']
+                MailState=              content['LeadRequest']['MailState']
+                RefID=                  content['LeadRequest']['RefID']
+                SSN=                    content['LeadRequest']['SSN']
+                References=             content['LeadRequest']['References']
+                MailAddress=            content['LeadRequest']['MailAddress']
+                HomePhone=              content['LeadRequest']['HomePhone']
+                
+                '''Employinfo'''
+                EmploymentLength=       content['LeadRequest']['EmploymentInfo']['EmploymentLength']
+                City=                   content['LeadRequest']['EmploymentInfo']['City']
+                Supervisor=             content['LeadRequest']['EmploymentInfo']['Supervisor']
+                PhoneExt=               content['LeadRequest']['EmploymentInfo']['PhoneExt']
+                Zip=                    content['LeadRequest']['EmploymentInfo']['Zip']
+                PayrollType=            content['LeadRequest']['EmploymentInfo']['PayrollType']
+                Shift=                  content['LeadRequest']['EmploymentInfo']['Shift']
+                PayFrequency=           content['LeadRequest']['EmploymentInfo']['PayFrequency']
+                MonthlyIncome=          content['LeadRequest']['EmploymentInfo']['MonthlyIncome']
+                Phone=                  content['LeadRequest']['EmploymentInfo']['Phone']
+                State=                  content['LeadRequest']['EmploymentInfo']['State']
+                IncomeType=             content['LeadRequest']['EmploymentInfo']['IncomeType']
+                Address=                content['LeadRequest']['EmploymentInfo']['Address']
+                SecondNextPayDay=       content['LeadRequest']['EmploymentInfo']['SecondNextPayDay']
+                Employer=               content['LeadRequest']['EmploymentInfo']['Employer']
+                NextPayDay=             content['LeadRequest']['EmploymentInfo']['NextPayDay']
+                Occupation=             content['LeadRequest']['EmploymentInfo']['Occupation']
+                
+                '''Bank info'''
+                AbaNumber=              content['LeadRequest']['BankInfo']['AbaNumber']
+                AccountLength=          content['LeadRequest']['BankInfo']['AccountLength']
+                CheckingAccount=        content['LeadRequest']['BankInfo']['CheckingAccount']
+                AccountToUse=           content['LeadRequest']['BankInfo']['AccountToUse']
+                BankName=               content['LeadRequest']['BankInfo']['BankName']
+                '''Loan'''
+                Amount=                 content['LeadRequest']['LoanInfo']['Amount']
+                DueDate=                content['LeadRequest']['LoanInfo']['DueDate']
+                '''Reefrence'''
+                Lastname=               content['LeadRequest']['References']['Reference']['Lastname']
+                Relation=               content['LeadRequest']['References']['Reference']['Relation']
+                Firstname=              content['LeadRequest']['References']['Reference']['Firstname']
+                Phone=                  content['LeadRequest']['References']['Reference']['Phone']
+
+                #print "testdhgjkh",content
+
+                # call functions of the modules as per dynamic methods from request
+                status_code,data  = decision(client_ip,DriversLicense,SSN,Email,content,**args)
+            else:
+                result = {'status':400,'data':'Bad request, missing method type attribute !!'}
+                return HttpResponse(json.dumps(result), content_type='application/json')
+            result = {'status':status_code,'data':data}
+            return HttpResponse(json.dumps(result), content_type='application/json')
+    except Exception,e:
+            res = str(e)
+            data = {'error': res}
+            return HttpResponse(json.dumps(data), content_type='application/json')
+
+# lead decisioning service
+def decision(client_ip,License,ssn,email,content):
+    #check value in lead table
+    leads=leadstatus(client_ip,ssn,content)
+    print "leadstatus",leads
+    if(leads=='inser value'):
+        lead = Leads.objects.filter(social_security = ssn , drivers_license=License)
+        print "lead table",lead
+        
+        if lead:
+            for discion in lead:
+                lead_id=discion.id
+                
+            if lead_id:
+                print "jklfjhkl"
+                data="update in lead tabel"
+                print "status",lead_id
+                return {101, data} 
+        else:
+            print "leadadd",
+            user_id=UserCreate(email,content)
+            if user_id:
+               leadestatus=leadregister(user_id,content)
+               if leadestatus:
+                   Send_email(email);
+               data="Lead add successfuly"
+               return {data,200 }  
+            
+               
+        
+    else:
+        print "status",leads
+        return {leads,101}
+    
+    
+'''lead value check'''
+def leadstatus(client_ip,ssn,content):
+    print "leadstatus working",ssn
+    leaddesicion=LeadDecisioning.objects.filter(social_security=ssn)
+    if leaddesicion:
+        decision_status="Already Exist Data"
+        return decision_status
+        
+    else:
+        ip_address=client_ip
+        print "client_ip",ip_address
+        LeadDecisioning.objects.create(
+            ip_address=ip_address,
+            social_security=ssn,
+            Decision_status='Accept',
+            decisioning_data=content
+            
+        )
+        data="inser value"
+        return data
+    
+    
+'''add lead in user tabel'''    
+def UserCreate(email,content):
+    print "runing usertable"
+    HomeState          =    content['LeadRequest']['HomeState']
+    DriversLicenseState=    content['LeadRequest']['DriversLicenseState']
+    DriversLicense     =    content['LeadRequest']['DriversLicense']
+    DOB                =    content['LeadRequest']['DOB']
+    WorkPhone=              content['LeadRequest']['WorkPhone']
+    HomeAddress=            content['LeadRequest']['HomeAddress']
+    Username=               content['LeadRequest']['Username']
+    Firstname=              content['LeadRequest']['Firstname']
+    Lastname=               content['LeadRequest']['Lastname']
+    Email=                  content['LeadRequest']['Email']
+    HomeCity=               content['LeadRequest']['HomeCity']
+    Password=               content['LeadRequest']['Password']
+    Language=               content['LeadRequest']['Language']
+    CellPhone=              content['LeadRequest']['CellPhone']
+    HomePhone=              content['LeadRequest']['HomePhone']
+    State=                  content['LeadRequest']['EmploymentInfo']['State']
+    Zip=                    content['LeadRequest']['EmploymentInfo']['Zip']
+    City=                   content['LeadRequest']['EmploymentInfo']['City']
+   
+    user=User.objects.filter(email=email)
+    if user:
+        for userdata in user:
+            print userdata
+            userid=userdata.id
+    else:
+        User.objects.create(            
+            entityname=Firstname,
+            first_name=Firstname,
+            last_name=Lastname,
+            password=Password,
+            email=Email,
+            ownerName=Firstname+Lastname,
+            ownerEmail='mss.shintusingh@gmail.com',
+            #storeName=storeName,
+            storeAddress=HomeAddress,
+            group='Customers',
+            state=State,
+            phone_number=CellPhone,
+            zip_code=Zip,
+            managerName='shintu',
+            managerEmail='mss.shintu@gmail.com',
+            service='',
+            #longitude=longitude,
+            #latitude=latitude,
+            is_active=0,
+            city=City,
+            username=Username
+            )
+        new_user=User.objects.filter(email=email)
+        for user in new_user:
+            userid= user.id
+            
+    return userid
+
+
+'''lead add in lead tabel'''
+def leadregister(userid,content):
+    HomeState          =    content['LeadRequest']['HomeState']
+    DriversLicenseState=    content['LeadRequest']['DriversLicenseState']
+    DriversLicense     =    content['LeadRequest']['DriversLicense']
+    DOB                =    content['LeadRequest']['DOB']
+    MailCity           =    content['LeadRequest']['MailCity']
+    ClientIpAddress=        content['LeadRequest']['ClientIpAddress']
+    WorkPhone=              content['LeadRequest']['WorkPhone']
+    HomeAddress=            content['LeadRequest']['HomeAddress']
+    MailZip=                content['LeadRequest']['MailZip']
+    Username=               content['LeadRequest']['Username']
+    WorkPhoneExt=           content['LeadRequest']['WorkPhoneExt']
+    Firstname=              content['LeadRequest']['Firstname']
+    Lastname=               content['LeadRequest']['Lastname']
+    Email=                  content['LeadRequest']['Email']
+    HomeCity=               content['LeadRequest']['HomeCity']
+    Password=               content['LeadRequest']['Password']
+    HomeZip=                content['LeadRequest']['HomeZip']
+    TimeAtAddress=          content['LeadRequest']['TimeAtAddress']
+    BankInfo=               content['LeadRequest']['BankInfo']
+    Language=               content['LeadRequest']['Language']
+    CellPhone=              content['LeadRequest']['CellPhone']
+    Gender=                 content['LeadRequest']['Gender']
+    Fax=                    content['LeadRequest']['Fax']
+    BestTimeToCall=         content['LeadRequest']['BestTimeToCall']
+    LoanInfo=               content['LeadRequest']['LoanInfo']
+    MailState=              content['LeadRequest']['MailState']
+    RefID=                  content['LeadRequest']['RefID']
+    SSN=                    content['LeadRequest']['SSN']
+    References=             content['LeadRequest']['References']
+    MailAddress=            content['LeadRequest']['MailAddress']
+    HomePhone=              content['LeadRequest']['HomePhone']
+    
+    '''Employinfo'''
+    EmploymentLength=       content['LeadRequest']['EmploymentInfo']['EmploymentLength']
+    City=                   content['LeadRequest']['EmploymentInfo']['City']
+    Supervisor=             content['LeadRequest']['EmploymentInfo']['Supervisor']
+    PhoneExt=               content['LeadRequest']['EmploymentInfo']['PhoneExt']
+    Zip=                    content['LeadRequest']['EmploymentInfo']['Zip']
+    PayrollType=            content['LeadRequest']['EmploymentInfo']['PayrollType']
+    Shift=                  content['LeadRequest']['EmploymentInfo']['Shift']
+    PayFrequency=           content['LeadRequest']['EmploymentInfo']['PayFrequency']
+    MonthlyIncome=          content['LeadRequest']['EmploymentInfo']['MonthlyIncome']
+    Phone=                  content['LeadRequest']['EmploymentInfo']['Phone']
+    State=                  content['LeadRequest']['EmploymentInfo']['State']
+    IncomeType=             content['LeadRequest']['EmploymentInfo']['IncomeType']
+    Address=                content['LeadRequest']['EmploymentInfo']['Address']
+    SecondNextPayDay=       content['LeadRequest']['EmploymentInfo']['SecondNextPayDay']
+    Employer=               content['LeadRequest']['EmploymentInfo']['Employer']
+    NextPayDay=             content['LeadRequest']['EmploymentInfo']['NextPayDay']
+    Occupation=             content['LeadRequest']['EmploymentInfo']['Occupation']
+    
+    '''Bank info'''
+    AbaNumber=              content['LeadRequest']['BankInfo']['AbaNumber']
+    AccountLength=          content['LeadRequest']['BankInfo']['AccountLength']
+    CheckingAccount=        content['LeadRequest']['BankInfo']['CheckingAccount']
+    AccountToUse=           content['LeadRequest']['BankInfo']['AccountToUse']
+    BankName=               content['LeadRequest']['BankInfo']['BankName']
+    '''Loan'''
+    Amount=                 content['LeadRequest']['LoanInfo']['Amount']
+    DueDate=                content['LeadRequest']['LoanInfo']['DueDate']
+    '''Reefrence'''
+    Lastname=               content['LeadRequest']['References']['Reference']['Lastname']
+    Relation=               content['LeadRequest']['References']['Reference']['Relation']
+    Firstname=              content['LeadRequest']['References']['Reference']['Firstname']
+    Phone=                  content['LeadRequest']['References']['Reference']['Phone']
+    
+    currenttime=datetime.datetime.now().replace(microsecond=0)
+    print "datat",currenttime
+    addlead=leadtable= Leads.objects.create(
+                        first_name=Firstname,
+                        last_name=Lastname,
+                        street_addr1=HomeAddress,
+                        street_addr2=MailAddress,
+                        city=City,
+                        state=State,
+                        Zip=Zip,
+                        social_security=SSN,
+                        #phone_home=HomePhone,
+                        #phone_cell=CellPhone,
+                        #phone_work=WorkPhone,
+                        #phone_work_ext=WorkPhoneExt,
+                        Email=Email,
+                        #birth_date=DOB,
+                        employer_name=Employer,
+                        pay_frequency=PayFrequency,
+                        #direct_deposit=data['direct_deposite'],
+                        #pay_day1=data['pay_day1'],
+                        #pay_day2=data['pay_day2'],
+                        bank_aba=AbaNumber,
+                        bank_account=CheckingAccount,
+                        bank_name=BankName,
+                       #income_monthly=MonthlyIncome,
+                        #own_home=data['own_home'],
+                        drivers_license=DriversLicense,
+                        drivers_license_st=DriversLicenseState,
+                        #client_url_root=data['client_url_root'],
+                        client_ip_address=ClientIpAddress,
+                        #email_alternate=data['email_alternate'],
+                        #months_employed=data['months_employed'],
+                        income_type=IncomeType,
+                        #is_military=data['is_military'],
+                        user_id=userid,
+                        #bank_account_type=data['bank_account_type'],
+                        #requested_amount=data['requested_amount'],
+                        #months_at_address=data['months_at_address'],
+                        #months_at_bank=data['months_at_bank'],
+                        created_on = currenttime
+                        )
+    return addlead
+
+
+
+def Send_email(email):
+    print "email check ",email
+    email_set=send_mail('hi you new lead ', 'lead add successful.', email,
+    [email], fail_silently=False)
+    print email_set
+    return email_set
